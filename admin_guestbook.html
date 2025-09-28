@@ -4,7 +4,6 @@
 <meta charset="utf-8" />
 <title>Guestbook — Admin</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 <style>
   body { font-family: "Courier New", monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
   .container { max-width:900px; margin:0 auto; }
@@ -40,81 +39,74 @@
 </div>
 
 <script>
-// ------------------- SUPABASE SETUP -------------------
-const SUPABASE_URL = "YOUR_SUPABASE_URL";        // replace with your Supabase URL
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // replace with your anon key
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ------------------- ELEMENTS -------------------
 const messageInput = document.getElementById('message');
 const signBtn = document.getElementById('signBtn');
-const clearBtn = document.getElementById('clearBtn');
 const entriesDiv = document.getElementById('entries');
+const clearBtn = document.getElementById('clearBtn');
 
-// ------------------- FETCH MESSAGES -------------------
-async function renderEntries() {
-  const { data: entries, error } = await supabase
-    .from('messages')
-    .select('id,timestamp,message,ip')
-    .order('timestamp', { ascending: false });
+// Load/save entries
+function loadEntries() {
+  const raw = localStorage.getItem('cult_guestbook_entries');
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch(e){ return []; }
+}
+function saveEntries(entries) {
+  localStorage.setItem('cult_guestbook_entries', JSON.stringify(entries));
+}
 
-  if (error) { console.error(error); return; }
-
+// Render entries (admin sees IPs)
+function renderEntries() {
+  const entries = loadEntries().slice().reverse();
   entriesDiv.innerHTML = '';
-  if (!entries || entries.length === 0) {
+  if (entries.length === 0) {
     entriesDiv.innerHTML = '<p><em>No entries yet.</em></p>';
     return;
   }
-
-  entries.forEach(e => {
+  for (const e of entries) {
     const div = document.createElement('div');
     div.className = 'entry';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `${new Date(e.timestamp).toLocaleString()} — IP: ${e.ip || 'unknown'}`;
+    meta.textContent = `${e.timestamp} — IP: ${e.ip || 'unknown'}`;
     const msg = document.createElement('div');
     msg.textContent = e.message;
     div.appendChild(meta);
     div.appendChild(msg);
     entriesDiv.appendChild(div);
-  });
+  }
 }
 
-// ------------------- ADD ENTRY -------------------
+// Add entry (admin can also add)
 signBtn.addEventListener('click', async () => {
   const text = messageInput.value.trim();
   if (!text) { alert('Write a message before adding.'); return; }
 
-  let ip = 'unknown';
+  let ip = null;
   try {
     const r = await fetch('https://api.ipify.org?format=json');
     const data = await r.json();
     ip = data.ip;
-  } catch(e){}
+  } catch(e) { ip = 'unknown'; }
 
-  const { error } = await supabase
-    .from('messages')
-    .insert([{ message: text, ip }]);
-
-  if (error) { console.error(error); alert('Error adding message.'); return; }
-
+  const entries = loadEntries();
+  entries.push({
+    timestamp: new Date().toLocaleString(),
+    ip: ip,
+    message: text
+  });
+  saveEntries(entries);
   messageInput.value = '';
   renderEntries();
 });
 
-// ------------------- CLEAR ALL ENTRIES -------------------
-clearBtn.addEventListener('click', async () => {
+// Clear all entries
+clearBtn.addEventListener('click', () => {
   if (!confirm('Delete all guestbook entries?')) return;
-
-  const { error } = await supabase.from('messages').delete().neq('id', 0);
-  if (error) { console.error(error); alert('Error clearing messages.'); return; }
-
+  localStorage.removeItem('cult_guestbook_entries');
   renderEntries();
 });
 
-// ------------------- LIVE UPDATE -------------------
 renderEntries();
-setInterval(renderEntries, 5000); // refresh every 5 seconds
 </script>
 </body>
 </html>
