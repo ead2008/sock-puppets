@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dark Alley Horror 3D</title>
+    <style>
+        body { margin:0; overflow:hidden; background:black; }
+        canvas { display:block; }
+        #instructions {
+            position:absolute; top:10px; left:10px; color:#FF0000;
+            font-family:"Courier New", monospace; z-index:10;
+        }
+        #return {
+            position:absolute; bottom:20px; left:50%;
+            transform:translateX(-50%); color:lime;
+            font-family:"Courier New", monospace; font-size:20px;
+            text-decoration:none;
+        }
+    </style>
+</head>
+<body>
+<div id="instructions">W/S: forward/back | A/D: turn</div>
+<a href="index.html" id="return">← return to safety</a>
+<canvas id="gameCanvas"></canvas>
+
+<audio id="bgMusic" src="Strange sounds in Russia_.mp3" loop></audio>
+<audio id="scareSound" src="Wendigo Sounds.mp3"></audio>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+// Map (same size as your original)
+const map = [
+  [1,1,1,1,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,0,1],
+  [1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]
+];
+
+const tileSize = 64;
+
+// Player start
+let posX = tileSize * 2;
+let posY = tileSize * 1;
+let dir = 0;
+const fov = Math.PI / 3;
+
+let keys = {};
+let reachedSock = false;
+
+// Sock sprite at corridor end
+const sockImg = new Image();
+sockImg.src = 'https://vignette.wikia.nocookie.net/baldi-fanon/images/9/9d/Xmas_Crafters_Normal.png/revision/latest?cb=20181215012412';
+const sockPos = {x: tileSize * 1.5, y: tileSize * 85}; // last row
+
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+const bgMusic = document.getElementById('bgMusic');
+const scareSound = document.getElementById('scareSound');
+
+// Autoplay workaround: start music after user interaction
+function startAudio() {
+    bgMusic.play().catch(err => console.log(err));
+    window.removeEventListener('keydown', startAudio);
+    window.removeEventListener('click', startAudio);
+}
+window.addEventListener('keydown', startAudio);
+window.addEventListener('click', startAudio);
+
+function castRays() {
+    const numRays = canvas.width;
+    const step = fov / numRays;
+    for(let i = 0; i < numRays; i++){
+        const rayAngle = dir - fov/2 + i*step;
+        let distance = 0;
+        let hit = false;
+        let rayX = posX, rayY = posY;
+
+        while(!hit && distance < 1000){
+            distance += 1;
+            rayX = posX + Math.cos(rayAngle)*distance;
+            rayY = posY + Math.sin(rayAngle)*distance;
+
+            const mapX = Math.floor(rayX/tileSize);
+            const mapY = Math.floor(rayY/tileSize);
+
+            if(map[mapY] && map[mapY][mapX] > 0){
+                hit = true;
+                const wallHeight = (tileSize*canvas.height)/distance;
+                ctx.fillStyle = 'darkgray';
+                ctx.fillRect(i, canvas.height/2 - wallHeight/2, 1, wallHeight);
+            }
+        }
+    }
+}
+
+function drawSprite(sprite, spritePos){
+    const dx = spritePos.x - posX;
+    const dy = spritePos.y - posY;
+    const distance = Math.sqrt(dx*dx + dy*dy);
+    const angleToSprite = Math.atan2(dy, dx) - dir;
+
+    if(Math.abs(angleToSprite) < fov/2){
+        const spriteScreenX = (0.5 + angleToSprite/fov) * canvas.width;
+        const spriteHeight = (tileSize*canvas.height)/distance;
+        ctx.drawImage(sprite, spriteScreenX - spriteHeight/2, canvas.height/2 - spriteHeight/2, spriteHeight, spriteHeight);
+
+        if(distance < 100 && !reachedSock){
+            scareSound.play();
+            reachedSock = true;
+        }
+    }
+}
+
+function update() {
+    const moveSpeed = 3;
+    const rotSpeed = 0.05;
+
+    if(keys['w']){
+        const newX = posX + Math.cos(dir)*moveSpeed;
+        const newY = posY + Math.sin(dir)*moveSpeed;
+        if(map[Math.floor(newY/tileSize)][Math.floor(newX/tileSize)] === 0){
+            posX = newX;
+            posY = newY;
+        }
+    }
+    if(keys['s']){
+        const newX = posX - Math.cos(dir)*moveSpeed;
+        const newY = posY - Math.sin(dir)*moveSpeed;
+        if(map[Math.floor(newY/tileSize)][Math.floor(newX/tileSize)] === 0){
+            posX = newX;
+            posY = newY;
+        }
+    }
+    if(keys['a']) dir -= rotSpeed;
+    if(keys['d']) dir += rotSpeed;
+}
+
+function loop() {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    update();
+    castRays();
+    drawSprite(sockImg, sockPos);
+
+    requestAnimationFrame(loop);
+}
+
+sockImg.onload = loop;
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+</script>
+</body>
+</html>
