@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <title>Guestbook — User</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
+  /* (copy your existing styles here) */
   body { font-family: "Courier New", monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
   .container { max-width:900px; margin:0 auto; }
   h1 { color:#cc0000; }
@@ -22,7 +23,7 @@
   <h1>Guestbook — User</h1>
 
   <div class="notice">
-    Your IP is hidden. You can add messages but cannot see other users’ IPs or clear all entries.
+    Your IP will be recorded on the server when you add a message.
   </div>
 
   <div style="margin-top:14px;">
@@ -33,71 +34,32 @@
     </div>
   </div>
 
-  <h2 style="margin-top:28px;">Entries</h2>
-  <div id="entries"></div>
+  <h2 style="margin-top:28px;">Entries (local preview)</h2>
+  <div id="entries">
+    <p><em>Entries are saved to the server; admin can view them.</em></p>
+  </div>
 </div>
 
 <script>
 const messageInput = document.getElementById('message');
 const signBtn = document.getElementById('signBtn');
-const entriesDiv = document.getElementById('entries');
 
-// Load/save entries
-function loadEntries() {
-  const raw = localStorage.getItem('cult_guestbook_entries');
-  if (!raw) return [];
-  try { return JSON.parse(raw); } catch(e){ return []; }
-}
-function saveEntries(entries) {
-  localStorage.setItem('cult_guestbook_entries', JSON.stringify(entries));
-}
-
-// Render entries (IP hidden)
-function renderEntries() {
-  const entries = loadEntries().slice().reverse();
-  entriesDiv.innerHTML = '';
-  if (entries.length === 0) {
-    entriesDiv.innerHTML = '<p><em>No entries yet.</em></p>';
-    return;
-  }
-  for (const e of entries) {
-    const div = document.createElement('div');
-    div.className = 'entry';
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = `${e.timestamp} — IP: hidden`;
-    const msg = document.createElement('div');
-    msg.textContent = e.message;
-    div.appendChild(meta);
-    div.appendChild(msg);
-    entriesDiv.appendChild(div);
-  }
-}
-
-// Add entry: fetch IP but hide it for user
 signBtn.addEventListener('click', async () => {
   const text = messageInput.value.trim();
   if (!text) { alert('Write a message before adding.'); return; }
 
-  let userIP = null;
   try {
-    const r = await fetch('https://api.ipify.org?format=json');
+    const r = await fetch('/add-entry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text })
+    });
     const data = await r.json();
-    userIP = data.ip; // store for admin
-  } catch(e) { userIP = 'unknown'; }
-
-  const entries = loadEntries();
-  entries.push({
-    timestamp: new Date().toLocaleString(),
-    ip: userIP, // hidden from user
-    message: text
-  });
-  saveEntries(entries);
-  messageInput.value = '';
-  renderEntries();
-});
-
-renderEntries();
-</script>
-</body>
-</html>
+    if (data && data.success) {
+      alert('Message saved. Thank you!');
+      messageInput.value = '';
+    } else {
+      alert('Failed to save message.');
+    }
+  } catch (err) {
+    console.error(err);
