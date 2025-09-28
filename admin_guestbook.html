@@ -2,24 +2,40 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Message Board — Admin</title>
+<title>Guestbook — Admin</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 <style>
-body { font-family:"Courier New",monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
-.container { max-width:900px; margin:0 auto; }
-h1 { color:#cc0000; }
-.btn { background:#cc0000; color:#fff; border:none; padding:10px 14px; cursor:pointer; font-weight:bold; margin-bottom:16px; }
-.entry { border-bottom:1px dashed #222; padding:10px 0; }
-.meta { color:#999; font-size:0.9em; margin-bottom:6px; }
-a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bottom:12px; }
+  body { font-family: "Courier New", monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
+  .container { max-width:900px; margin:0 auto; }
+  h1 { color:#cc0000; }
+  .notice { background:#111; padding:10px; border-left:4px solid #cc0000; margin-bottom:16px; }
+  textarea { width:100%; height:80px; background:#0b0b0b; color:#efe7e7; border:1px solid #333; padding:8px; }
+  .btn { background:#cc0000; color:#fff; border:none; padding:10px 14px; cursor:pointer; font-weight:bold; }
+  .entry { border-bottom:1px dashed #222; padding:10px 0; }
+  .meta { color:#999; font-size:0.9em; margin-bottom:6px; }
+  a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bottom:12px; }
 </style>
 </head>
 <body>
 <div class="container">
   <a class="return" href="index.html">← return to safety</a>
   <h1>Guestbook — Admin</h1>
-  <button id="clearBtn" class="btn">Clear All Messages</button>
+
+  <div class="notice">
+    Admin can see all user IPs and clear entries.
+  </div>
+
+  <div style="margin-top:14px;">
+    <label for="message">Write a short message:</label>
+    <textarea id="message" placeholder="Your message..."></textarea>
+    <div style="margin-top:8px;">
+      <button id="signBtn" class="btn">Add Entry</button>
+      <button id="clearBtn" class="btn" style="background:#333; margin-left:6px;">Clear All Entries</button>
+    </div>
+  </div>
+
+  <h2 style="margin-top:28px;">Entries</h2>
   <div id="entries"></div>
 </div>
 
@@ -30,54 +46,75 @@ const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // replace with your anon ke
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ------------------- ELEMENTS -------------------
-const adminEntriesDiv = document.getElementById('entries');
+const messageInput = document.getElementById('message');
+const signBtn = document.getElementById('signBtn');
 const clearBtn = document.getElementById('clearBtn');
+const entriesDiv = document.getElementById('entries');
 
-// ------------------- FETCH MESSAGES (ADMIN) -------------------
-async function fetchAdminMessages() {
-  const { data: messages, error } = await supabase
+// ------------------- FETCH MESSAGES -------------------
+async function renderEntries() {
+  const { data: entries, error } = await supabase
     .from('messages')
     .select('id,timestamp,message,ip')
     .order('timestamp', { ascending: false });
 
   if (error) { console.error(error); return; }
 
-  adminEntriesDiv.innerHTML = '';
-  if (!messages || messages.length === 0) {
-    adminEntriesDiv.innerHTML = '<p><em>No messages yet.</em></p>';
+  entriesDiv.innerHTML = '';
+  if (!entries || entries.length === 0) {
+    entriesDiv.innerHTML = '<p><em>No entries yet.</em></p>';
     return;
   }
 
-  messages.forEach(msg => {
+  entries.forEach(e => {
     const div = document.createElement('div');
     div.className = 'entry';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `${new Date(msg.timestamp).toLocaleString()} — IP: ${msg.ip}`;
-    const content = document.createElement('div');
-    content.textContent = msg.message;
+    meta.textContent = `${new Date(e.timestamp).toLocaleString()} — IP: ${e.ip || 'unknown'}`;
+    const msg = document.createElement('div');
+    msg.textContent = e.message;
     div.appendChild(meta);
-    div.appendChild(content);
-    adminEntriesDiv.appendChild(div);
+    div.appendChild(msg);
+    entriesDiv.appendChild(div);
   });
 }
 
-// ------------------- CLEAR ALL MESSAGES -------------------
-clearBtn.addEventListener('click', async () => {
-  if (!confirm('Delete all messages?')) return;
+// ------------------- ADD ENTRY -------------------
+signBtn.addEventListener('click', async () => {
+  const text = messageInput.value.trim();
+  if (!text) { alert('Write a message before adding.'); return; }
+
+  let ip = 'unknown';
+  try {
+    const r = await fetch('https://api.ipify.org?format=json');
+    const data = await r.json();
+    ip = data.ip;
+  } catch(e){}
 
   const { error } = await supabase
     .from('messages')
-    .delete()
-    .neq('id', 0); // delete all rows
+    .insert([{ message: text, ip }]);
 
-  if (error) { console.error(error); alert('Error deleting messages.'); return; }
-  fetchAdminMessages();
+  if (error) { console.error(error); alert('Error adding message.'); return; }
+
+  messageInput.value = '';
+  renderEntries();
+});
+
+// ------------------- CLEAR ALL ENTRIES -------------------
+clearBtn.addEventListener('click', async () => {
+  if (!confirm('Delete all guestbook entries?')) return;
+
+  const { error } = await supabase.from('messages').delete().neq('id', 0);
+  if (error) { console.error(error); alert('Error clearing messages.'); return; }
+
+  renderEntries();
 });
 
 // ------------------- LIVE UPDATE -------------------
-fetchAdminMessages();
-setInterval(fetchAdminMessages, 5000); // refresh every 5 seconds
+renderEntries();
+setInterval(renderEntries, 5000); // refresh every 5 seconds
 </script>
 </body>
 </html>
