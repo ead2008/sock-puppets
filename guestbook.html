@@ -2,27 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Message board</title>
+<title>Message Board — User</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/supabase.min.js"></script>
 <style>
-  body { font-family: "Courier New", monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
-  .container { max-width:900px; margin:0 auto; }
-  h1 { color:#cc0000; }
-  .notice { background:#111; padding:10px; border-left:4px solid #cc0000; margin-bottom:16px; }
-  textarea { width:100%; height:80px; background:#0b0b0b; color:#efe7e7; border:1px solid #333; padding:8px; }
-  .btn { background:#cc0000; color:#fff; border:none; padding:10px 14px; cursor:pointer; font-weight:bold; }
-  .entry { border-bottom:1px dashed #222; padding:10px 0; }
-  .meta { color:#999; font-size:0.9em; margin-bottom:6px; }
-  a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bottom:12px; }
+body { font-family:"Courier New",monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
+.container { max-width:900px; margin:0 auto; }
+h1 { color:#cc0000; }
+.notice { background:#111; padding:10px; border-left:4px solid #cc0000; margin-bottom:16px; }
+textarea { width:100%; height:80px; background:#0b0b0b; color:#efe7e7; border:1px solid #333; padding:8px; }
+.btn { background:#cc0000; color:#fff; border:none; padding:10px 14px; cursor:pointer; font-weight:bold; }
+.entry { border-bottom:1px dashed #222; padding:10px 0; }
+.meta { color:#999; font-size:0.9em; margin-bottom:6px; }
+a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bottom:12px; }
 </style>
 </head>
 <body>
 <div class="container">
   <a class="return" href="index.html">← return to safety</a>
   <h1>Guestbook — User</h1>
-
   <div class="notice">
-    Wellcome to the secret society of sock puppets message board
+    Welcome to the secret society of sock puppets message board
   </div>
 
   <div style="margin-top:14px;">
@@ -38,66 +38,66 @@
 </div>
 
 <script>
+const SUPABASE_URL = "YOUR_SUPABASE_URL";
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const messageInput = document.getElementById('message');
 const signBtn = document.getElementById('signBtn');
 const entriesDiv = document.getElementById('entries');
 
-// Load/save entries
-function loadEntries() {
-  const raw = localStorage.getItem('cult_guestbook_entries');
-  if (!raw) return [];
-  try { return JSON.parse(raw); } catch(e){ return []; }
-}
-function saveEntries(entries) {
-  localStorage.setItem('cult_guestbook_entries', JSON.stringify(entries));
-}
+async function fetchMessages() {
+  let { data: messages, error } = await supabase
+    .from('messages')
+    .select('timestamp,message')
+    .order('timestamp', { ascending: false });
 
-// Render entries (IP hidden)
-function renderEntries() {
-  const entries = loadEntries().slice().reverse();
+  if (error) { console.error(error); return; }
+
   entriesDiv.innerHTML = '';
-  if (entries.length === 0) {
-    entriesDiv.innerHTML = '<p><em>No entries yet.</em></p>';
+  if (!messages.length) {
+    entriesDiv.innerHTML = '<p><em>No messages yet.</em></p>';
     return;
   }
-  for (const e of entries) {
+
+  messages.forEach(msg => {
     const div = document.createElement('div');
     div.className = 'entry';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.textContent = `${e.timestamp} — `;
-    const msg = document.createElement('div');
-    msg.textContent = e.message;
+    meta.textContent = new Date(msg.timestamp).toLocaleString();
+    const content = document.createElement('div');
+    content.textContent = msg.message;
     div.appendChild(meta);
-    div.appendChild(msg);
+    div.appendChild(content);
     entriesDiv.appendChild(div);
-  }
+  });
 }
 
-// Add entry: fetch IP but hide it for user
 signBtn.addEventListener('click', async () => {
   const text = messageInput.value.trim();
-  if (!text) { alert('Write a message before adding.'); return; }
+  if (!text) return alert('Write a message.');
 
-  let userIP = null;
+  let ip = 'unknown';
   try {
-    const r = await fetch('https://api.ipify.org?format=json');
-    const data = await r.json();
-    userIP = data.ip; // store for admin
-  } catch(e) { userIP = 'unknown'; }
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    ip = data.ip;
+  } catch(e){}
 
-  const entries = loadEntries();
-  entries.push({
-    timestamp: new Date().toLocaleString(),
-    ip: userIP, // hidden from user
-    message: text
-  });
-  saveEntries(entries);
+  const { error } = await supabase
+    .from('messages')
+    .insert([{ message: text, ip }]);
+
+  if (error) console.error(error);
   messageInput.value = '';
-  renderEntries();
+  fetchMessages();
 });
 
-renderEntries();
+// Fetch messages every 5 seconds
+fetchMessages();
+setInterval(fetchMessages, 5000);
 </script>
 </body>
 </html>
+
