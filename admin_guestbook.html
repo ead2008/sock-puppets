@@ -24,22 +24,30 @@ a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bot
 </div>
 
 <script>
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+// ------------------- SUPABASE SETUP -------------------
+const SUPABASE_URL = "YOUR_SUPABASE_URL";        // replace with your Supabase URL
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // replace with your anon key
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ------------------- ELEMENTS -------------------
 const adminEntriesDiv = document.getElementById('entries');
 const clearBtn = document.getElementById('clearBtn');
 
+// ------------------- FETCH MESSAGES (ADMIN) -------------------
 async function fetchAdminMessages() {
-  let { data: messages, error } = await supabase
+  const { data: messages, error } = await supabase
     .from('messages')
-    .select('timestamp,message,ip')
+    .select('id,timestamp,message,ip')
     .order('timestamp', { ascending: false });
 
   if (error) { console.error(error); return; }
 
   adminEntriesDiv.innerHTML = '';
+  if (!messages || messages.length === 0) {
+    adminEntriesDiv.innerHTML = '<p><em>No messages yet.</em></p>';
+    return;
+  }
+
   messages.forEach(msg => {
     const div = document.createElement('div');
     div.className = 'entry';
@@ -54,16 +62,22 @@ async function fetchAdminMessages() {
   });
 }
 
+// ------------------- CLEAR ALL MESSAGES -------------------
 clearBtn.addEventListener('click', async () => {
   if (!confirm('Delete all messages?')) return;
-  const { error } = await supabase.from('messages').delete().neq('id', 0);
-  if (error) console.error(error);
+
+  const { error } = await supabase
+    .from('messages')
+    .delete()
+    .neq('id', 0); // delete all rows
+
+  if (error) { console.error(error); alert('Error deleting messages.'); return; }
   fetchAdminMessages();
 });
 
-// Refresh every 5 seconds
+// ------------------- LIVE UPDATE -------------------
 fetchAdminMessages();
-setInterval(fetchAdminMessages, 5000);
+setInterval(fetchAdminMessages, 5000); // refresh every 5 seconds
 </script>
 </body>
 </html>
