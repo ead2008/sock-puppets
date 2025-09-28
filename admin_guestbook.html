@@ -1,112 +1,64 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <title>Guestbook — Admin</title>
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <style>
+  /* Keep your admin styles */
   body { font-family: "Courier New", monospace; background:#070707; color:#efe7e7; margin:0; padding:20px; }
   .container { max-width:900px; margin:0 auto; }
   h1 { color:#cc0000; }
-  .notice { background:#111; padding:10px; border-left:4px solid #cc0000; margin-bottom:16px; }
-  textarea { width:100%; height:80px; background:#0b0b0b; color:#efe7e7; border:1px solid #333; padding:8px; }
-  .btn { background:#cc0000; color:#fff; border:none; padding:10px 14px; cursor:pointer; font-weight:bold; }
-  .entry { border-bottom:1px dashed #222; padding:10px 0; }
-  .meta { color:#999; font-size:0.9em; margin-bottom:6px; }
-  a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bottom:12px; }
+  .btn { background:#cc0000; color:#fff; border:none; padding:8px 12px; cursor:pointer; font-weight:bold; }
+  pre { background:#0b0b0b; padding:12px; border:1px solid #222; white-space:pre-wrap; word-break:break-word; }
 </style>
 </head>
 <body>
 <div class="container">
-  <a class="return" href="index.html">← return to safety</a>
   <h1>Guestbook — Admin</h1>
-
-  <div class="notice">
-    Admin can see all user IPs and clear entries.
+  <div style="margin-bottom:12px;">
+    <button id="refreshBtn" class="btn">Refresh Entries</button>
+    <button id="clearBtn" class="btn" style="background:#333; margin-left:8px;">Clear All Entries</button>
   </div>
-
-  <div style="margin-top:14px;">
-    <label for="message">Write a short message:</label>
-    <textarea id="message" placeholder="Your message..."></textarea>
-    <div style="margin-top:8px;">
-      <button id="signBtn" class="btn">Add Entry</button>
-      <button id="clearBtn" class="btn" style="background:#333; margin-left:6px;">Clear All Entries</button>
-    </div>
-  </div>
-
-  <h2 style="margin-top:28px;">Entries</h2>
-  <div id="entries"></div>
+  <h2>Logged Entries (user_texts.txt)</h2>
+  <pre id="logArea">Loading...</pre>
 </div>
 
 <script>
-const messageInput = document.getElementById('message');
-const signBtn = document.getElementById('signBtn');
-const entriesDiv = document.getElementById('entries');
+const logArea = document.getElementById('logArea');
+const refreshBtn = document.getElementById('refreshBtn');
 const clearBtn = document.getElementById('clearBtn');
 
-// Load/save entries
-function loadEntries() {
-  const raw = localStorage.getItem('cult_guestbook_entries');
-  if (!raw) return [];
-  try { return JSON.parse(raw); } catch(e){ return []; }
-}
-function saveEntries(entries) {
-  localStorage.setItem('cult_guestbook_entries', JSON.stringify(entries));
-}
-
-// Render entries (admin sees IPs)
-function renderEntries() {
-  const entries = loadEntries().slice().reverse();
-  entriesDiv.innerHTML = '';
-  if (entries.length === 0) {
-    entriesDiv.innerHTML = '<p><em>No entries yet.</em></p>';
-    return;
-  }
-  for (const e of entries) {
-    const div = document.createElement('div');
-    div.className = 'entry';
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = `${e.timestamp} — IP: ${e.ip || 'unknown'}`;
-    const msg = document.createElement('div');
-    msg.textContent = e.message;
-    div.appendChild(meta);
-    div.appendChild(msg);
-    entriesDiv.appendChild(div);
-  }
-}
-
-// Add entry (admin can also add)
-signBtn.addEventListener('click', async () => {
-  const text = messageInput.value.trim();
-  if (!text) { alert('Write a message before adding.'); return; }
-
-  let ip = null;
+async function loadEntries() {
   try {
-    const r = await fetch('https://api.ipify.org?format=json');
-    const data = await r.json();
-    ip = data.ip;
-  } catch(e) { ip = 'unknown'; }
+    const r = await fetch('/admin/entries', { credentials: 'same-origin' });
+    if (!r.ok) throw new Error('Failed to fetch entries');
+    const text = await r.text();
+    logArea.textContent = text || '(no entries)';
+  } catch (e) {
+    logArea.textContent = 'Error loading entries: ' + e.message;
+  }
+}
 
-  const entries = loadEntries();
-  entries.push({
-    timestamp: new Date().toLocaleString(),
-    ip: ip,
-    message: text
-  });
-  saveEntries(entries);
-  messageInput.value = '';
-  renderEntries();
-});
+refreshBtn.addEventListener('click', loadEntries);
 
-// Clear all entries
-clearBtn.addEventListener('click', () => {
+clearBtn.addEventListener('click', async () => {
   if (!confirm('Delete all guestbook entries?')) return;
-  localStorage.removeItem('cult_guestbook_entries');
-  renderEntries();
+  try {
+    const r = await fetch('/admin/clear', { method: 'POST' });
+    const data = await r.json();
+    if (data && data.success) {
+      loadEntries();
+      alert('Entries cleared.');
+    } else {
+      alert('Failed to clear entries.');
+    }
+  } catch (e) {
+    alert('Network error clearing entries.');
+  }
 });
 
-renderEntries();
+loadEntries();
 </script>
 </body>
 </html>
