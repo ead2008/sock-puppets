@@ -21,6 +21,7 @@ a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bot
 <div class="container">
   <a class="return" href="index.html">← return to safety</a>
   <h1>Guestbook — User</h1>
+
   <div class="notice">
     Welcome to the secret society of sock puppets message board
   </div>
@@ -38,24 +39,27 @@ a.return { color:#00ff66; text-decoration:none; display:inline-block; margin-bot
 </div>
 
 <script>
-const SUPABASE_URL = "YOUR_SUPABASE_URL";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+// ------------------- SUPABASE SETUP -------------------
+const SUPABASE_URL = "YOUR_SUPABASE_URL";        // replace with your Supabase URL
+const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // replace with your anon key
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// ------------------- ELEMENTS -------------------
 const messageInput = document.getElementById('message');
 const signBtn = document.getElementById('signBtn');
 const entriesDiv = document.getElementById('entries');
 
+// ------------------- FETCH MESSAGES -------------------
 async function fetchMessages() {
-  let { data: messages, error } = await supabase
+  const { data: messages, error } = await supabase
     .from('messages')
-    .select('timestamp,message')
+    .select('id,timestamp,message')
     .order('timestamp', { ascending: false });
 
   if (error) { console.error(error); return; }
 
   entriesDiv.innerHTML = '';
-  if (!messages.length) {
+  if (!messages || messages.length === 0) {
     entriesDiv.innerHTML = '<p><em>No messages yet.</em></p>';
     return;
   }
@@ -74,30 +78,24 @@ async function fetchMessages() {
   });
 }
 
+// ------------------- ADD MESSAGE -------------------
 signBtn.addEventListener('click', async () => {
   const text = messageInput.value.trim();
-  if (!text) return alert('Write a message.');
-
-  let ip = 'unknown';
-  try {
-    const res = await fetch('https://api.ipify.org?format=json');
-    const data = await res.json();
-    ip = data.ip;
-  } catch(e){}
+  if (!text) { alert('Write a message.'); return; }
 
   const { error } = await supabase
     .from('messages')
-    .insert([{ message: text, ip }]);
+    .insert([{ message: text }]);
 
-  if (error) console.error(error);
+  if (error) { console.error(error); alert('Error sending message.'); return; }
+
   messageInput.value = '';
   fetchMessages();
 });
 
-// Fetch messages every 5 seconds
+// ------------------- LIVE UPDATE -------------------
 fetchMessages();
-setInterval(fetchMessages, 5000);
+setInterval(fetchMessages, 5000); // refresh every 5 seconds
 </script>
 </body>
 </html>
-
